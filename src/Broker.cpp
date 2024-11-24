@@ -8,7 +8,7 @@
 
 using namespace std; // Use the standard namespace
 
-// Constructor
+// Constructor TODO: maybe add a timeout for the connection handler
 Broker::Broker(Logger& logger, const string& serverIP, const int& serverPort) 
   : logger(logger) , running(false) , serverIP(serverIP) 
   , serverPort(serverPort) 
