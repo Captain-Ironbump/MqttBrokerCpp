@@ -1,6 +1,11 @@
 #include "../include/Broker.hpp" // Include the Broker header file
 #include "../include/Client.hpp" // Include the Client header file
 #include "../include/socketUtil.h" // Include the Logger header file
+
+#include <fcntl.h>
+#include <sys/select.h>
+#include <sys/time.h>
+
 using namespace std; // Use the standard namespace
 
 // Constructor
@@ -25,31 +30,56 @@ Broker::~Broker()
 // Connection connectionHandler
 void Broker::connectionHandler()
 {
+  logger.log(LogLevel::INFO, "Connection handler started");
+  fd_set current_sockets, ready_sockets;
+  
+  struct timeval tv;
 
-  int res = listen(this->serverSocketFD, 10);
-  if (res < 0) {
-    logger.log(LogLevel::ERROR, "Failed to listen on server socket");
-    return;
-  }
-  logger.log(LogLevel::INFO, "Server socket listening for connections...");
+  FD_ZERO(&current_sockets);
+  FD_SET(this->serverSocketFD, &current_sockets);
 
-  while (this->running) 
-  {
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
+
+
+  while (this->running)
+  {  
+    logger.log(LogLevel::INFO, "Waiting for client connection...");
+
+    ready_sockets = current_sockets;
+
+    int activity = select(this->serverSocketFD + 1, &ready_sockets, NULL, NULL, &tv);
+    if (activity == 0)
+    {
+      logger.log(LogLevel::ERROR, "Timeout while waiting for client connection");
+      break;
+    }
+    if (activity < 0)
+    {
+      logger.log(LogLevel::ERROR, "Failed to select");
+      continue;
+    }
+
+    if (FD_ISSET(this->serverSocketFD, &ready_sockets) == 0)
+    {
+      logger.log(LogLevel::ERROR, "Server socket not set");
+      continue;
+    }
+
     struct sockaddr_in clientAddress;
     socklen_t clientLen = sizeof(struct sockaddr_in);
-
     int clientSocketFD = accept(this->serverSocketFD, (struct sockaddr *)&clientAddress, &clientLen);
     if (clientSocketFD < 0) 
     {
-      if (this->running) 
-      {
-        logger.log(LogLevel::ERROR, "Failed to accept connection");
-      }
+      logger.log(LogLevel::ERROR, "Failed to accept connection");    
       continue;
     }
+
     logger.log(LogLevel::INFO, "Accepted connection from client");
-    // handle client CONNECT packet with client ID and insert into clients map with clients file descriptor
-  }
+        // handle client CONNECT packet with client ID and insert into clients map with clients file descriptor
+        // TODO: Implement this 
+  }  
+  logger.log(LogLevel::INFO, "Connection handler stopped");
 }
 
 // Start the broker
@@ -79,11 +109,19 @@ void Broker::start()
       return;
     }
     logger.log(LogLevel::INFO, "Server socket bound successfully");
+
+    int res_listen = listen(serverSocketFD, 5);
+    if (res_listen < 0) 
+    {
+      logger.log(LogLevel::ERROR, "Failed to listen on server socket");
+      return;
+    }
     this->serverSocketFD = serverSocketFD;
 
     this->running = true;
     logger.log(LogLevel::INFO, "Starting broker thread");
     this->connectionThread = thread(&Broker::connectionHandler, this);
+
     return;
   }
   logger.log(LogLevel::ERROR, "Broker already running");
@@ -107,7 +145,7 @@ void Broker::stop()
       shutdown(this->serverSocketFD, SHUT_RDWR);
       return;
     }
-logger.log(LogLevel::ERROR, "Broker thread not joinable");
+    logger.log(LogLevel::ERROR, "Broker thread not joinable");
     return;
   }
   logger.log(LogLevel::ERROR, "Broker not running");
