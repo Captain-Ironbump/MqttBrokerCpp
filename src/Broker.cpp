@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <unistd.h> // For close()
 
 using namespace std; // Use the standard namespace
 
@@ -132,20 +133,17 @@ void Broker::stop()
 {
   if (this->running) 
   {
-    this->running = false;
-    logger.log(LogLevel::INFO, "Trying to stop broker thread");
-    if (connectionThread.joinable()) 
+    this->joinAllThreads();
+    
+    for (auto& pair : this->clients) 
     {
-      logger.log(LogLevel::INFO, "Joining broker thread");
-      connectionThread.join();
-      for (auto& pair : this->clients) 
-      {
-        pair.second->closeFileDescriptor();
-      }
-      shutdown(this->serverSocketFD, SHUT_RDWR);
-      return;
+      pair.second->closeFileDescriptor();
     }
-    logger.log(LogLevel::ERROR, "Broker thread not joinable");
+    this->logger.log(LogLevel::INFO, "Closing server socket");
+    shutdown(this->serverSocketFD, SHUT_RDWR);
+    close(this->serverSocketFD);
+    this->logger.log(LogLevel::INFO, "Server socket closed");
+    this->running = false;
     return;
   }
   logger.log(LogLevel::ERROR, "Broker not running");
@@ -171,5 +169,15 @@ void Broker::printClients(Logger& logger)
   for (auto const& x : this->clients) 
   {
     logger.log(LogLevel::INFO, "Client ID: " + x.first + " Object[" + x.second->to_string() + "]");
+  }
+}
+
+void Broker::joinAllThreads()
+{
+  this->logger.log(LogLevel::INFO, "Joining all threads");
+  if (this->connectionThread.joinable())
+  {
+    this->connectionThread.join();
+    this->logger.log(LogLevel::INFO, "Connection thread joined");
   }
 }

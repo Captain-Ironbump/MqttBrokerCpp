@@ -30,6 +30,7 @@ public:
   void addClient(std::string client_id, Client* client);
   void removeClient(std::string client_id);
   void printClients(Logger& logger);
+  void joinAllThreads();
 };
 
 #endif // ndef BROKER_H

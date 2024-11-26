@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -g -Iinclude
+CXXFLAGS = -Wall -g -Iinclude -std=c++17
 LDFLAGS = -Llib -lsocketutil -lloggercpp
 
 SOURCES = src/main.cpp src/Client.cpp src/Broker.cpp
