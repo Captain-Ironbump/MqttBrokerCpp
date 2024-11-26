@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <iostream> // Include the iostream library
 #include <unistd.h> // For close()
 
 using namespace std; // Use the standard namespace
@@ -34,26 +35,36 @@ void Broker::connectionHandler()
   logger.log(LogLevel::INFO, "Connection handler started");
   fd_set current_sockets, ready_sockets;
   
-  struct timeval tv;
+  struct timeval current_time, ready_time;
 
   FD_ZERO(&current_sockets);
   FD_SET(this->serverSocketFD, &current_sockets);
 
-  tv.tv_sec = 5;
-  tv.tv_usec = 0;
+  current_time.tv_sec = 5;
+  current_time.tv_usec = 0;
 
 
-  while (this->running)
-  {  
+  while (true)
+  {
+    {
+      std::unique_lock<std::mutex> lock(this->runningMutex);
+      if (this->stopRequested)
+      {
+        logger.log(LogLevel::INFO, "Stop requested");
+        break;
+      }
+    }
+
     logger.log(LogLevel::INFO, "Waiting for client connection...");
 
+    ready_time = current_time;
     ready_sockets = current_sockets;
 
-    int activity = select(this->serverSocketFD + 1, &ready_sockets, NULL, NULL, &tv);
+    int activity = select(this->serverSocketFD + 1, &ready_sockets, NULL, NULL, &ready_time);
     if (activity == 0)
     {
       logger.log(LogLevel::ERROR, "Timeout while waiting for client connection");
-      break;
+      continue;
     }
     if (activity < 0)
     {
@@ -77,10 +88,26 @@ void Broker::connectionHandler()
     }
 
     logger.log(LogLevel::INFO, "Accepted connection from client");
-        // handle client CONNECT packet with client ID and insert into clients map with clients file descriptor
-        // TODO: Implement this 
+    thread clientThread = thread(&Broker::clientConnectionHandler, this, ref(clientSocketFD));
+    this->clientThreads.push_back(make_unique<thread>(std::move(clientThread)));
   }  
   logger.log(LogLevel::INFO, "Connection handler stopped");
+}
+
+// Client connection handler
+void Broker::clientConnectionHandler(const int& clientSocketFD) 
+{
+  logger.log(LogLevel::INFO, "Client connection handler started");
+  // TODO: replace current with reading in MQTT packet
+  char buffer[1024] = {0};
+  int valread = read(clientSocketFD, buffer, 1024);
+  if (valread < 0) 
+  {
+    logger.log(LogLevel::ERROR, "Failed to read from client socket");
+    return;
+  }
+  logger.log(LogLevel::INFO, "Received message from client: " + string(buffer));
+  logger.log(LogLevel::INFO, "Client connection handler stopped");
 }
 
 // Start the broker
@@ -100,7 +127,7 @@ void Broker::start()
     if (serverAddress == nullptr) 
     {
       logger.log(LogLevel::ERROR, "Failed to create server address");
-      return;
+      return;    
     }
     logger.log(LogLevel::INFO, "Server address created successfully");
     int res = bind(serverSocketFD, (struct sockaddr *)serverAddress, sizeof(*serverAddress));
@@ -117,15 +144,18 @@ void Broker::start()
       logger.log(LogLevel::ERROR, "Failed to listen on server socket");
       return;
     }
-    this->serverSocketFD = serverSocketFD;
 
     this->running = true;
+    this->stopRequested = false;
+
+    this->serverSocketFD = serverSocketFD;
+
     logger.log(LogLevel::INFO, "Starting broker thread");
     this->connectionThread = thread(&Broker::connectionHandler, this);
 
     return;
   }
-  logger.log(LogLevel::ERROR, "Broker already running");
+  logger.log(LogLevel::WARNING, "Broker already running");
 }
 
 // Stop the Broker
@@ -133,6 +163,12 @@ void Broker::stop()
 {
   if (this->running) 
   {
+    {
+      std::unique_lock<std::mutex> lock(this->runningMutex);
+      this->stopRequested = true;
+      this->runningCV.notify_all();
+    }
+
     this->joinAllThreads();
     
     for (auto& pair : this->clients) 
@@ -146,7 +182,7 @@ void Broker::stop()
     this->running = false;
     return;
   }
-  logger.log(LogLevel::ERROR, "Broker not running");
+  logger.log(LogLevel::WARNING, "Broker not running");
 }
 
 // Add a client to the broker
