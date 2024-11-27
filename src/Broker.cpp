@@ -107,6 +107,8 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
     return;
   }
   logger.log(LogLevel::INFO, "Received message from client: " + string(buffer));
+  string response = "Hello from broker";
+  send(clientSocketFD, response.c_str(), response.size(), 0);
   logger.log(LogLevel::INFO, "Client connection handler stopped");
 }
 
