@@ -2,11 +2,13 @@
 #include "../include/Client.hpp" // Include the Client header file
 #include "../include/socketUtil.h" // Include the Logger header file
 
+#include <cstring>
 #include <fcntl.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <iostream> // Include the iostream library
 #include <unistd.h> // For close()
+#include <cerrno> // For errno
 
 using namespace std; // Use the standard namespace
 
@@ -50,8 +52,11 @@ void Broker::connectionHandler()
       std::unique_lock<std::mutex> lock(this->runningMutex);
       if (this->stopRequested)
       {
-        logger.log(LogLevel::INFO, "Stop requested");
-        break;
+        if (this->stopRequested)
+        {
+          logger.log(LogLevel::INFO, "Stop requested");
+          break;
+        }
       }
     }
 
@@ -100,15 +105,26 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
   logger.log(LogLevel::INFO, "Client connection handler started");
   // TODO: replace current with reading in MQTT packet
   char buffer[1024] = {0};
-  int valread = read(clientSocketFD, buffer, 1024);
-  if (valread < 0) 
-  {
-    logger.log(LogLevel::ERROR, "Failed to read from client socket");
-    return;
-  }
-  logger.log(LogLevel::INFO, "Received message from client: " + string(buffer));
-  string response = "Hello from broker";
-  send(clientSocketFD, response.c_str(), response.size(), 0);
+  while (true) {
+    {
+      std::unique_lock<std::mutex> lock(this->runningMutex);
+      if (this->stopRequested)
+      {
+        logger.log(LogLevel::INFO, "Stop requested");
+        break;
+      }
+    }
+    
+    int valread = read(clientSocketFD, buffer, 1024);
+    if (valread < 0) 
+    {
+      logger.log(LogLevel::ERROR, "Failed to read from client socket");
+      return;
+    }
+    logger.log(LogLevel::INFO, "Received message from client: " + string(buffer));
+    string response = "Hello from broker";
+    send(clientSocketFD, response.c_str(), response.size(), 0);
+    }
   logger.log(LogLevel::INFO, "Client connection handler stopped");
 }
 
@@ -124,6 +140,13 @@ void Broker::start()
       logger.log(LogLevel::ERROR, "Failed to create server socket");
       return;
     }
+
+    int opt = 1;
+    if (setsockopt(serverSocketFD, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+      perror("setsockopt failed");
+      return;
+    }
+
     logger.log(LogLevel::INFO, "Server socket created successfully");
     sockaddr_in* serverAddress = createIPv4SockAddr(this->serverIP.c_str(), this->serverPort);
     if (serverAddress == nullptr) 
@@ -135,7 +158,8 @@ void Broker::start()
     int res = bind(serverSocketFD, (struct sockaddr *)serverAddress, sizeof(*serverAddress));
     if (res < 0) 
     {
-      logger.log(LogLevel::ERROR, "Failed to bind server socket");
+      string error = "Failed to bind server socket with: " + string(strerror(errno));
+      logger.log(LogLevel::ERROR, error);
       return;
     }
     logger.log(LogLevel::INFO, "Server socket bound successfully");
