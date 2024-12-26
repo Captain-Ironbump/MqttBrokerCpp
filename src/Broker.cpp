@@ -92,7 +92,7 @@ void Broker::connectionHandler()
       continue;
     }
 
-    logger.log(LogLevel::INFO, "Accepted connection from client");
+    logger.log(LogLevel::INFO, "Accepted connection from client with FD: %d", clientSocketFD);
     thread clientThread = thread(&Broker::clientConnectionHandler, this, ref(clientSocketFD));
     this->clientThreads.push_back(make_unique<thread>(std::move(clientThread)));
   }  
@@ -105,7 +105,8 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
   logger.log(LogLevel::INFO, "Client connection handler started");
   // TODO: replace current with reading in MQTT packet
   char buffer[1024] = {0};
-  while (true) {
+  while (true) 
+  {
     {
       std::unique_lock<std::mutex> lock(this->runningMutex);
       if (this->stopRequested)
@@ -114,17 +115,24 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
         break;
       }
     }
-    
+
     int valread = read(clientSocketFD, buffer, 1024);
+    
+    if (valread == 0) 
+    {
+      logger.log(LogLevel::INFO, "Client disconnected");
+      break;
+    }
+
     if (valread < 0) 
     {
       logger.log(LogLevel::ERROR, "Failed to read from client socket");
-      return;
+      break;
     }
-    logger.log(LogLevel::INFO, "Received message from client: " + string(buffer));
+    logger.log(LogLevel::INFO, "Received message from client: %s", buffer);
     string response = "Hello from broker";
     send(clientSocketFD, response.c_str(), response.size(), 0);
-    }
+  }
   logger.log(LogLevel::INFO, "Client connection handler stopped");
 }
 
@@ -159,7 +167,7 @@ void Broker::start()
     if (res < 0) 
     {
       string error = "Failed to bind server socket with: " + string(strerror(errno));
-      logger.log(LogLevel::ERROR, error);
+      logger.log(LogLevel::ERROR, error.c_str());
       return;
     }
     logger.log(LogLevel::INFO, "Server socket bound successfully");
@@ -214,14 +222,14 @@ void Broker::stop()
 // Add a client to the broker
 void Broker::addClient(string client_id, Client* client) 
 {
-  logger.log(LogLevel::INFO, "Adding client: " + client_id);
+  logger.log(LogLevel::INFO, "Adding client: %s", client_id.c_str());
   this->clients[client_id] = client;
 }
 
 // Remove a client from the broker
 void Broker::removeClient(string client_id) 
 {
-  logger.log(LogLevel::INFO, "Removing client: " + client_id);
+  logger.log(LogLevel::INFO, "Removing client: %s", client_id.c_str());
   this->clients.erase(client_id);
 }
 
@@ -230,7 +238,7 @@ void Broker::printClients(Logger& logger)
 {
   for (auto const& x : this->clients) 
   {
-    logger.log(LogLevel::INFO, "Client ID: " + x.first + " Object[" + x.second->to_string() + "]");
+    logger.log(LogLevel::INFO, "Client ID: %s Object[%s]", x.first.c_str(), x.second->to_string().c_str());
   }
 }
 

@@ -13,10 +13,12 @@ int main() {
     
     std::cout << "Welcome to the Broker CLI. Type 'start' to start the broker, 'stop' to stop it and 'exit' to exit the program" << std::endl;
 
-    while (true) {
+    while (true) 
+    {
         std::cout << "> ";
         std::getline(std::cin, command);
         if (command == "exit") {
+            broker->stop();
             logger.log(LogLevel::INFO, "Exiting program");
             break;
         }
@@ -27,8 +29,7 @@ int main() {
             broker->stop();
         }
     }
-
-    delete broker;
+    
     return 0;
 }
 
