@@ -28,8 +28,9 @@ private:
   std::vector<std::unique_ptr<std::thread>> clientThreads; 
   bool stopRequested = false;
 
+  void clientReconnectionHandler(int clientSocketFD, Client*& r_client, int* r_statusCode);
   void connectionHandler();
-  void clientConnectionHandler(const int& clientSocketFD);
+  void clientConnectionHandler(Client* client);
 public:
   Broker(Logger& logger, const std::string& serverIP, const int& serverPort);
   ~Broker();

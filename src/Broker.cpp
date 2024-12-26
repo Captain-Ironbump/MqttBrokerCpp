@@ -98,24 +98,74 @@ void Broker::connectionHandler()
     char ipBuffer[22];
     snprintf(ipBuffer, 22, "%s:%d", ip, port);
 
-    // Create the clients UUID 
-    UUID uuid = UUID();
+    // check if the client has already connected before
+    // first sended message should be the client UUID or NULL if new client
+    int* statusCode = new int(0);
+    Client* client = nullptr;
+    clientReconnectionHandler(clientSocketFD, client, statusCode);
+    if (*statusCode < 0)
+    {
+      logger.log(LogLevel::ERROR, "Failed to reconnect client");
+      continue;
+    }
+    if (*statusCode == 0)
+    {
+      // Create the clients UUID 
+      UUID uuid = UUID();
 
-    // Create the client Object
-    Client* client = new Client(uuid, clientSocketFD);
-    this->addClient(uuid, client);
+      // Create the client Object
+      client = new Client(uuid, clientSocketFD);
+      this->addClient(uuid, client);
+    }
 
     /*logger.log(LogLevel::INFO, "Client created with ID: %d", client.getClientID().getUUID());*/
 
     logger.log(LogLevel::INFO, "Accepted connection from client [%s] with FD: %d", ipBuffer, clientSocketFD);
-    thread clientThread = thread(&Broker::clientConnectionHandler, this, ref(clientSocketFD));
+    if (client == nullptr)
+    {
+      logger.log(LogLevel::CRITICAL, "Client is null");
+      continue;
+    }
+    thread clientThread = thread(&Broker::clientConnectionHandler, this, client);
     this->clientThreads.push_back(make_unique<thread>(std::move(clientThread)));
   }  
   logger.log(LogLevel::INFO, "Connection handler stopped");
 }
 
+// Client reconnection handler
+void Broker::clientReconnectionHandler(int clientSocketFD, Client*& r_client, int* r_statusCode)
+{
+  // TODO: add more readable status codes
+  char buffer[21] = {0};
+  int valread = read(clientSocketFD, buffer, 21);
+  if (valread < 0) 
+  {
+    logger.log(LogLevel::ERROR, "Failed to read id from client socket");
+    *r_statusCode = valread;
+    return;
+  }
+  std::string stringBuffer = std::string(buffer);
+  if (stringBuffer.compare("NULL") == 0)
+  {
+    logger.log(LogLevel::INFO, "Client is new");
+    *r_statusCode = 0;
+    return;
+  }
+  for (auto& pair : this->clients) 
+  {
+    if (pair.second->getClientID().getUUID() == std::stoull(stringBuffer))
+    {
+      logger.log(LogLevel::INFO, "Client is not new with id: %s", stringBuffer.c_str());
+      r_client = pair.second;
+      r_client->setClientSocketFD(clientSocketFD);
+      *r_statusCode = 1;
+      return;
+    }
+  } 
+}
+
 // Client connection handler
-void Broker::clientConnectionHandler(const int& clientSocketFD) 
+void Broker::clientConnectionHandler(Client* client)
 {
   logger.log(LogLevel::INFO, "Client connection handler started");
   // TODO: replace current with reading in MQTT packet
@@ -134,7 +184,7 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
       }
     }
 
-    int valread = read(clientSocketFD, buffer, 1024);
+    int valread = read(client->getClientSocketFD(), buffer, 1024);
     
     if (valread == 0) 
     {
@@ -148,9 +198,11 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
       break;
     }
     logger.log(LogLevel::INFO, "Received message from client: %s", buffer);
-    string response = "Hello from broker";
-    send(clientSocketFD, response.c_str(), response.size(), 0);
+    string response = "Hello from broker with id: " + to_string(client->getClientID().getUUID());
+    send(client->getClientSocketFD(), response.c_str(), response.size(), 0);
   }
+  /*logger.log(LogLevel::INFO, "Cleaning up Client with id: %llu", client->getClientID().getUUID());*/
+  /*this->removeClient(client->getClientID());*/
   logger.log(LogLevel::INFO, "Client connection handler stopped");
 }
 
@@ -248,7 +300,7 @@ void Broker::addClient(UUID client_id, Client* client)
 // Remove a client from the broker
 void Broker::removeClient(UUID client_id) 
 {
-  logger.log(LogLevel::INFO, "Removing client: %d", client_id.getUUID());
+  logger.log(LogLevel::INFO, "Removing client: %llu", client_id.getUUID());
   this->clients.erase(client_id);
 }
 
