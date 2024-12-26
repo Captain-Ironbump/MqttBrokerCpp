@@ -9,6 +9,7 @@
 #include <atomic>
 #include <vector>
 #include "Client.hpp"
+#include "UUID.hpp"
 #include "logger.hpp"
 
 class Broker
@@ -18,7 +19,7 @@ private:
   int serverSocketFD;
   const std::string& serverIP;
   const int& serverPort;
-  std::unordered_map<std::string, Client*> clients;
+  std::unordered_map<UUID, Client*> clients;
   std::mutex clientsMutex;
   std::mutex runningMutex;
   std::condition_variable runningCV;
@@ -34,8 +35,8 @@ public:
   ~Broker();
   void start();
   void stop();
-  void addClient(std::string client_id, Client* client);
-  void removeClient(std::string client_id);
+  void addClient(UUID client_id, Client* client);
+  void removeClient(UUID client_id);
   void printClients(Logger& logger);
   void joinAllThreads();
 };

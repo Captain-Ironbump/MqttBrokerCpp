@@ -1,6 +1,8 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#include "UUID.hpp"
+
 #include <mutex>
 #include <string>
 #include <chrono>
@@ -15,7 +17,7 @@ enum ClientStatus {
 
 class Client {
 private:
-  string client_id;
+  UUID client_id;
   chrono::duration<double> keep_alive;
   chrono::time_point<chrono::system_clock> last_seen;
   ClientStatus status;
@@ -24,7 +26,7 @@ private:
 
   mutable mutex subscriptionMutex;
 public:
-  Client(string client_id, int clientSocketFD = -1, chrono::duration<double> keep_alive = chrono::seconds(60));
+  Client(UUID client_id, int clientSocketFD = -1, chrono::duration<double> keep_alive = chrono::seconds(60));
   ~Client();
   string to_string();
   void setClientSocketFD(int clientSocketFD);
@@ -42,6 +44,8 @@ public:
   void removeSubscription(const string& topic);
   bool hasSubscription(const string& topic) const;
   set<string> getSubscriptions() const;
+
+  UUID getClientID() const;
 
   void closeFileDescriptor();
 };

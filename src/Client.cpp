@@ -4,7 +4,7 @@
 using namespace std;
 
 // Constructor
-Client::Client(string client_id, int clientSocketFD, chrono::duration<double> keep_alive) 
+Client::Client(UUID client_id, int clientSocketFD, chrono::duration<double> keep_alive) 
   : client_id(client_id), keep_alive(keep_alive), last_seen(chrono::system_clock::now())
   , status(ClientStatus::CONNECTED), clientSocketFD(clientSocketFD), subscriptions(set<string>())
 {  
@@ -17,10 +17,11 @@ Client::~Client()
   close(this->clientSocketFD);
 }
 
+
 // convert the client to a string
 string Client::to_string() 
 {
-  return this->client_id;
+  return "Client ID: " + std::to_string(this->client_id.getUUID()) + " Status: " + std::to_string(this->status);
 }
 
 // set the client socket file descriptor
@@ -111,4 +112,10 @@ set<string> Client::getSubscriptions() const
 void Client::closeFileDescriptor() 
 {
   close(this->clientSocketFD);
+}
+
+// get the client id
+UUID Client::getClientID() const 
+{
+  return this->client_id;
 }

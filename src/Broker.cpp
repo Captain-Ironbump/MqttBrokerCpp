@@ -1,6 +1,7 @@
 #include "../include/Broker.hpp" // Include the Broker header file
 #include "../include/Client.hpp" // Include the Client header file
-#include "../include/socketUtil.h" // Include the Logger header file
+#include "../include/socketUtil.h" // Include the Socket Helper header file
+#include "../include/UUID.hpp"
 
 #include <cstring>
 #include <fcntl.h>
@@ -15,17 +16,17 @@ using namespace std; // Use the standard namespace
 // Constructor TODO: maybe add a timeout for the connection handler
 Broker::Broker(Logger& logger, const string& serverIP, const int& serverPort) 
   : logger(logger) , running(false) , serverIP(serverIP) 
-  , serverPort(serverPort) 
+  , serverPort(serverPort), serverSocketFD(0), clients() 
 {
-  this->clients = unordered_map<string, Client*>();
-  this->serverSocketFD = 0;
+  
 }
 
 // Destructor
 Broker::~Broker() 
 {
   this->stop();
-  for (auto& pair : this->clients) {
+  for (auto& pair : this->clients) 
+  {
     delete pair.second;
   }
   this->clients.clear();
@@ -92,7 +93,21 @@ void Broker::connectionHandler()
       continue;
     }
 
-    logger.log(LogLevel::INFO, "Accepted connection from client with FD: %d", clientSocketFD);
+    const char *ip = inet_ntoa(clientAddress.sin_addr);
+    unsigned short port = ntohs(clientAddress.sin_port);
+    char ipBuffer[22];
+    snprintf(ipBuffer, 22, "%s:%d", ip, port);
+
+    // Create the clients UUID 
+    UUID uuid = UUID();
+
+    // Create the client Object
+    Client* client = new Client(uuid, clientSocketFD);
+    this->addClient(uuid, client);
+
+    /*logger.log(LogLevel::INFO, "Client created with ID: %d", client.getClientID().getUUID());*/
+
+    logger.log(LogLevel::INFO, "Accepted connection from client [%s] with FD: %d", ipBuffer, clientSocketFD);
     thread clientThread = thread(&Broker::clientConnectionHandler, this, ref(clientSocketFD));
     this->clientThreads.push_back(make_unique<thread>(std::move(clientThread)));
   }  
@@ -104,6 +119,9 @@ void Broker::clientConnectionHandler(const int& clientSocketFD)
 {
   logger.log(LogLevel::INFO, "Client connection handler started");
   // TODO: replace current with reading in MQTT packet
+
+  // Client Object
+  /*std::unique_ptr<Client> client = new Client();*/
   char buffer[1024] = {0};
   while (true) 
   {
@@ -220,16 +238,17 @@ void Broker::stop()
 }
 
 // Add a client to the broker
-void Broker::addClient(string client_id, Client* client) 
+void Broker::addClient(UUID client_id, Client* client)
 {
-  logger.log(LogLevel::INFO, "Adding client: %s", client_id.c_str());
-  this->clients[client_id] = client;
+  logger.log(LogLevel::INFO, "Adding client: %llu", client_id.getUUID());
+  this->clients[client_id] = client; 
 }
 
+
 // Remove a client from the broker
-void Broker::removeClient(string client_id) 
+void Broker::removeClient(UUID client_id) 
 {
-  logger.log(LogLevel::INFO, "Removing client: %s", client_id.c_str());
+  logger.log(LogLevel::INFO, "Removing client: %d", client_id.getUUID());
   this->clients.erase(client_id);
 }
 
@@ -238,7 +257,7 @@ void Broker::printClients(Logger& logger)
 {
   for (auto const& x : this->clients) 
   {
-    logger.log(LogLevel::INFO, "Client ID: %s Object[%s]", x.first.c_str(), x.second->to_string().c_str());
+    logger.log(LogLevel::INFO, "Client ID: %d Object[%s]", x.first.getUUID(), x.second->to_string().c_str());
   }
 }
 
