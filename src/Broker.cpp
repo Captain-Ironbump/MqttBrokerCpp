@@ -108,7 +108,7 @@ void Broker::connectionHandler()
       logger.log(LogLevel::ERROR, "Failed to reconnect client");
       continue;
     }
-    if (*statusCode == 0)
+    if (*statusCode == ClientsReconnectionStatusCodes::NEW_CLIENT)
     {
       // Create the clients UUID 
       UUID uuid = UUID();
@@ -148,17 +148,18 @@ void Broker::clientReconnectionHandler(int clientSocketFD, Client*& r_client, in
   if (stringBuffer.compare("NULL") == 0)
   {
     logger.log(LogLevel::INFO, "Client is new");
-    *r_statusCode = 0;
+    *r_statusCode = ClientsReconnectionStatusCodes::NEW_CLIENT;
     return;
   }
   for (auto& pair : this->clients) 
   {
+    std::unique_lock<std::mutex> lock(this->clientsMutex);
     if (pair.second->getClientID().getUUID() == std::stoull(stringBuffer))
     {
       logger.log(LogLevel::INFO, "Client is not new with id: %s", stringBuffer.c_str());
       r_client = pair.second;
       r_client->setClientSocketFD(clientSocketFD);
-      *r_statusCode = 1;
+      *r_statusCode = ClientsReconnectionStatusCodes::RECONNECTED_CLIENT;
       return;
     }
   } 

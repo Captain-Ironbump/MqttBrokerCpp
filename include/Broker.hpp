@@ -12,6 +12,14 @@
 #include "UUID.hpp"
 #include "logger.hpp"
 
+
+enum ClientsReconnectionStatusCodes {
+  RECONNECTED_CLIENT = 1,
+  NEW_CLIENT = 0,
+  FAILED_SCOKET_READ = -1,
+  FAILED_GENERAL = -2
+};
+
 class Broker
 {
 private:
