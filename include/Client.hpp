@@ -26,7 +26,7 @@ private:
 
   mutable mutex subscriptionMutex;
 public:
-  Client(UUID client_id, int clientSocketFD = -1, chrono::duration<double> keep_alive = chrono::seconds(60));
+  Client(UUID client_id, int clientSocketFD = -1, chrono::duration<double> keep_alive = chrono::seconds(10));
   ~Client();
   string to_string();
   void setClientSocketFD(int clientSocketFD);
