@@ -15,3 +15,6 @@ $(TARGET): $(OBJECTS)
 
 clean:
 	rm -f $(TARGET)
+
+remove-lib:
+	rm -f lib/**

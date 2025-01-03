@@ -13,7 +13,7 @@
 // include vector
 #include <vector>
 
-using namespace std; // Use the standard namespace
+ // Use the standard namespace
 
 // Constructor TODO: maybe add a timeout for the connection handler
 Broker::Broker(Logger& logger, const string& serverIP, const int& serverPort) 
@@ -256,13 +256,13 @@ void Broker::start()
       return;    
     }
     logger.log(LogLevel::INFO, "Server address created successfully");
-    int res = bind(serverSocketFD, (struct sockaddr *)serverAddress, sizeof(*serverAddress));
-    if (res < 0) 
-    {
-      string error = "Failed to bind server socket with: " + string(strerror(errno));
-      logger.log(LogLevel::ERROR, error.c_str());
-      return;
-    }
+    bind(serverSocketFD, (struct sockaddr *)serverAddress, sizeof(*serverAddress));
+    // if ((int)res < 0) 
+    // {
+    //   string error = "Failed to bind server socket with: " + string(strerror(errno));
+    //   logger.log(LogLevel::ERROR, error.c_str());
+    //   return;
+    // }
     logger.log(LogLevel::INFO, "Server socket bound successfully");
 
     int res_listen = listen(serverSocketFD, 5);
