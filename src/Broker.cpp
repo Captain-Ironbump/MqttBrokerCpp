@@ -1,11 +1,5 @@
-#include "../include/Broker.hpp" // Include the Broker header file
-#include "../include/Client.hpp" // Include the Client header file
-#include "../include/socketUtil.h" // Include the Socket Helper header file
-#include "../include/UUID.hpp"
-
 #include <cstring>
 #include <fcntl.h>
-#include <sys/select.h>
 #include <sys/time.h>
 #include <iostream> // Include the iostream library
 #include <unistd.h> // For close()
@@ -13,7 +7,20 @@
 // include vector
 #include <vector>
 
- // Use the standard namespace
+#ifdef _WIN32
+//here comes the windows specific headers (replacement for sys/select.h)
+#undef ERROR
+#else
+#include <sys/socket.h> // Include the socket library
+#endif
+
+#include "../include/Broker.hpp" // Include the Broker header file
+#include "../include/Client.hpp" // Include the Client header file
+#include "../include/socketUtil.h" // Include the Socket Helper header file
+#include "../include/UUID.hpp"
+
+
+using namespace std;
 
 // Constructor TODO: maybe add a timeout for the connection handler
 Broker::Broker(Logger& logger, const string& serverIP, const int& serverPort) 
@@ -400,7 +407,7 @@ void Broker::cleanUpDisconnectedClientsThread()
 
     // Now that iteration is complete, safely remove clients
     {
-      for (const auto& clientId : clientsToRemove)
+      for (const UUID& clientId : clientsToRemove)
       {
         logger.log(LogLevel::INFO, "Cleaning up Client with id: %llu", clientId.getUUID());
         this->removeClient(clientId);
